@@ -1,32 +1,39 @@
 #!/usr/bin/env bash
 
+# Determine the user running the script
 [[ -n "$SUDO_USER" ]] && RUNUSER="$SUDO_USER" || RUNUSER="$LOGNAME"
 RUNCMD="sudo -u $RUNUSER"
 
+# Run the updater script (if it exists)
 $RUNCMD bash ./scripts/updater true
 
+# Get the process ID of the TF2 process (hl2_linux for TF2, 64-bit version)
 line=$(pgrep -u "$RUNUSER" hl2_linux)
 arr=("$line")
 
+# Check if process argument is passed
 if [ $# == 1 ]; then
   proc=$1
 else
   if [ ${#arr[@]} == 0 ]; then
-    echo TF2 isn\'t running!
-    exit
+    echo "TF2 isn't running!"
+    exit 1
   fi
   proc=${arr[0]}
 fi
 
-echo Running instances: "${arr[@]}"
-echo Attaching to "$proc"
+echo "Running instances: ${arr[@]}"
+echo "Attaching to process $proc"
 
+# Generate a unique filename for the temporary library
 FILENAME="/tmp/.gl$(head /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 6)"
 
+# Ensure you're using the 64-bit version of libcathook.so
 cp "bin/libcathook.so" "$FILENAME"
 
-echo loading "$FILENAME" to "$proc"
+echo "Loading $FILENAME to process $proc"
 
+# Use gdb to inject the library into the process and print a backtrace if needed
 gdbbin="gdb"
 $gdbbin -n -q -batch \
 -ex "attach $proc" \
@@ -35,9 +42,12 @@ $gdbbin -n -q -batch \
 -ex "echo \033[1mCalling dlerror\033[0m\n" \
 -ex "call ((char*(*)(void))dlerror)()" \
 -ex "continue" \
--ex "backtrace"
+-ex "backtrace" \
+-ex "detach" \
+-ex "quit"
 
+# Clean up by removing the temporary library file
 rm "$FILENAME"
 
 echo
-echo "have fun pwning n00bs with rosnehook!"
+echo "Have fun pwning n00bs with rosnehook!"
